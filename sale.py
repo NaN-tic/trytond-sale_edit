@@ -17,22 +17,35 @@ class Sale:
     @classmethod
     def __setup__(cls):
         super(Sale, cls).__setup__()
+        cls._check_modify_exclude = ['description', 'payment_term',
+            'invoice_address',  'lines']
+
+        if hasattr(cls, 'payment_type'):
+                cls._check_modify_exclude += ['payment_type']
+
+        cls._check_modify_exclude_shipment = {
+            'shipment_address': 'delivery_address',
+            'shipment_party': 'customer',
+        }
+
+        for fname in (cls._check_modify_exclude +
+                cls._check_modify_exclude_shipment.keys()):
+            field = getattr(cls, fname)
+            field.states['readonly'] = _STATES_EDIT
 
         # TODO update current readonly
-        cls.description.states['readonly'] = _STATES_EDIT
-        cls.sale_date.states['readonly'] = _STATES_EDIT
-        cls.payment_term.states['readonly'] = _STATES_EDIT
-        # # party
-        # # invoice_address
-        # # shipment_party
-        # # shipment_address
-        # # warehouse
-        # # currency
-        cls.lines.size = If(Eval('state') == 'processing', 1, 9999999)
-        cls.lines.states['readonly'] = _STATES_EDIT
+        # cls.lines.size = If(Eval('state') == 'processing', 1, 9999999)
+        #cls.lines.states['readonly'] = _STATES_EDIT
         cls._error_messages.update({
                 'invalid_edit_method': ('Can not edit sale "%s" '
                     'that invoicing method is not on shipment sent.'),
+                'invalid_edit_fields_method': ('Can not edit sale "%s" '
+                    'and field %s because sale already invoiced.'),
+                'invalid_edit_shipments_method': ('Can not edit sale "%s" '
+                    'because sale partially shipped.'),
+                'invalid_edit_move': ('Can not edit move "%s" '
+                        'that state is assigned, done or cancel.'),
+
                 })
 
     def check_edit_state_method(self):
@@ -47,8 +60,66 @@ class Sale:
         '''
         Check edit invoice method.
         '''
-        if self.check_edit_state_method() and (self.invoice_method != 'shipment'):
+        if ((self.check_edit_state_method() and
+                (self.invoice_method != 'shipment')) or
+                len(self.shipments) > 1):
             self.raise_user_error('invalid_edit_method', (self.rec_name,))
+
+    @classmethod
+    def validate(cls, sales):
+        super(Sale, cls).validate(sales)
+
+        # check sale
+        for sale in sales:
+            sale.check_edit_invoice_method()
+
+    @classmethod
+    def write(cls, *args):
+        pool = Pool()
+        ShipmentOut = pool.get('stock.shipment.out')
+
+        actions = iter(args)
+        shipment_to_write = []
+        sales_to_process = []
+
+        for sales, values in zip(actions, actions):
+            for sale in sales:
+                if len(sale.shipments) > 1:
+                    cls.raise_user_error('invalid_edit_shipments_method',
+                        (sale.rec_name,))
+
+                if 'lines' in values:
+                    if sale.shipments:
+                        for move in sale.shipments[0].moves:
+                            if move.state != 'draft':
+                                cls.raise_user_error('invalid_edit_move',
+                                    (move.rec_name,))
+
+                    for v in values['lines']:
+                        if 'create' == v[0]:
+                            sales_to_process.append(sale)
+
+                for v in values:
+                    if v in cls._check_modify_exclude and sale.invoices:
+                        cls.raise_user_error('invalid_edit_fields_method',
+                            (sale.rec_name, v))
+
+                vals = {}
+                for field in cls._check_modify_exclude_shipment:
+                    m = cls._check_modify_exclude_shipment
+                    if values.get(field):
+                        vals[m[field]] = values.get(field)
+
+                if vals:
+                    shipment, = sale.shipments
+                    shipment_to_write.extend(([shipment], vals))
+
+        super(Sale, cls).write(*args)
+
+        if shipment_to_write:
+            ShipmentOut.write(*shipment_to_write)
+
+        cls.process(sales_to_process)
 
 
 class SaleLine:
@@ -58,11 +129,9 @@ class SaleLine:
     @classmethod
     def __setup__(cls):
         super(SaleLine, cls).__setup__()
+        cls._check_modify_exclude = ['quantity', 'unit_price']
+        cls._check_readonly_fields = ['type', 'product', 'unit', 'taxes']
 
-        cls.type.states['readonly'] = _STATES_EDIT_LINE
-        cls.product.states['readonly'] |= _STATES_EDIT_LINE
-        cls.unit.states['readonly'] = _STATES_EDIT_LINE
-        cls.taxes.states['readonly'] = _STATES_EDIT_LINE
         cls._error_messages.update({
                 'invalid_edit_move': ('Can not edit move "%s" '
                     'that state is assigned, done or cancel.'),
@@ -70,14 +139,17 @@ class SaleLine:
                     'that has more than one move.'),
                 })
 
+    def check_line_to_update(self):
+        if (not self.sale or not self.sale.state == 'processing' or
+                not self.moves):
+            return False
+        return True
+
     @classmethod
     def validate(cls, lines):
         super(SaleLine, cls).validate(lines)
 
-        sales = set()
-        for line in lines:
-            if line.sale:
-                sales.add(line.sale)
+        sales = set(x.sale for x in lines if x.sale)
 
         # check sale
         for sale in sales:
@@ -85,7 +157,7 @@ class SaleLine:
 
         # check sale lines
         for line in lines:
-            if not line.sale or not line.sale.state == 'processing':
+            if not line.check_line_to_update():
                 continue
 
             moves = line.moves
@@ -97,6 +169,7 @@ class SaleLine:
                 if move.state in ['assigned', 'done', 'cancel']:
                     cls.raise_user_error('invalid_edit_move', (move.rec_name))
 
+
     @classmethod
     def write(cls, *args):
         pool = Pool()
@@ -106,20 +179,24 @@ class SaleLine:
         actions = iter(args)
         moves_to_write = []
         shipment_out_waiting = set()
+        shipment_out_draft = set()
+
         for lines, values in zip(actions, actions):
             vals = {}
-            if 'quantity' in values:
-                vals['quantity'] = values['quantity']
-            if 'unit_price' in values:
-                vals['unit_price'] = values['unit_price']
+            for v in values:
+                if v in cls._check_readonly_fields:
+                    cls.raise_user_error('invalid_edit_move', 'a')
+
+            for field in cls._check_modify_exclude:
+                if field in values:
+                    vals[field] = values.get(field)
 
             if vals:
                 for line in lines:
-                    if not line.sale or not line.sale.state == 'processing' \
-                            or not line.moves:
+                    if not line.check_line_to_update():
                         continue
-                    # get first move because in validate we check that can not edit
-                    # a line that has more than one move
+                    # get first move because in validate we check that can not
+                    # edit a line that has more than one move
                     move, = line.moves
                     moves_to_write.extend(([move], vals))
 
@@ -128,6 +205,8 @@ class SaleLine:
                             shipment = move.shipment
                             if shipment.state == 'waiting':
                                 shipment_out_waiting.add(shipment)
+                            if shipment.state == 'draft':
+                                shipment_out_draft.add(shipment)
 
         super(SaleLine, cls).write(*args)
 
@@ -135,7 +214,12 @@ class SaleLine:
             Move.write(*moves_to_write)
 
             # reload inventory_moves from outgoing_moves
-            # not necessary in returns and reload inventory_moves from incoming_moves
+            # not necessary in returns and reload inventory_moves from
+            # incoming_moves
             if shipment_out_waiting:
                 ShipmentOut.draft(list(shipment_out_waiting))
                 ShipmentOut.wait(list(shipment_out_waiting))
+
+            if shipment_out_draft:
+                ShipmentOut.wait(list(shipment_out_draft))
+                ShipmentOut.draft(list(shipment_out_draft))
