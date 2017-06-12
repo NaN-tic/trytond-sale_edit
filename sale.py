@@ -1,6 +1,6 @@
 # The COPYRIGHT file at the top level of this repository contains the full
 # copyright notices and license terms.
-from trytond.pyson import Eval, If
+from trytond.pyson import Eval
 from trytond.pool import Pool, PoolMeta
 
 __all__ = ['Sale', 'SaleLine']
@@ -48,6 +48,7 @@ class Sale:
 
                 })
 
+    @property
     def check_edit_state_method(self):
         '''
         Check edit state method.
@@ -60,8 +61,8 @@ class Sale:
         '''
         Check edit invoice method.
         '''
-        if ((self.check_edit_state_method() and
-                (self.invoice_method != 'shipment')) or
+        if ((self.check_edit_state_method and
+                (self.invoice_method != 'shipment')) and
                 len(self.shipments) > 1):
             self.raise_user_error('invalid_edit_method', (self.rec_name,))
 
@@ -89,8 +90,8 @@ class Sale:
                         (sale.rec_name,))
 
                 if 'lines' in values:
-                    if sale.shipments:
-                        for move in sale.shipments[0].moves:
+                    for shipment in sale.shipments:
+                        for move in shipment.moves:
                             if move.state != 'draft':
                                 cls.raise_user_error('invalid_edit_move',
                                     (move.rec_name,))
@@ -137,13 +138,13 @@ class SaleLine:
                     'that state is assigned, done or cancel.'),
                 'invalid_edit_multimove': ('Can not edit line "%s" '
                     'that has more than one move.'),
+                'cannot_edit': ('Can not edit "%s" field.'),
                 })
 
     def check_line_to_update(self):
-        if (not self.sale or not self.sale.state == 'processing' or
-                not self.moves):
-            return False
-        return True
+        if (self.sale and self.sale.state == 'processing' and self.moves):
+            return True
+        return False
 
     @classmethod
     def validate(cls, lines):
@@ -156,6 +157,7 @@ class SaleLine:
             sale.check_edit_invoice_method()
 
         # check sale lines
+        shipments = set()
         for line in lines:
             if not line.check_line_to_update():
                 continue
@@ -163,12 +165,14 @@ class SaleLine:
             moves = line.moves
             if len(moves) > 1:
                 cls.raise_user_error('invalid_edit_multimove', (line.rec_name))
-
             for move in moves:
-                # TOOD outgoing move state is draft when shipment is assigned
-                if move.state in ['assigned', 'done', 'cancel']:
-                    cls.raise_user_error('invalid_edit_move', (move.rec_name))
+                if move.shipment:
+                    shipments.add(move.shipment)
 
+        for shipment in shipments:
+            for move in shipment.moves:
+                if move.state != 'draft':
+                    cls.raise_user_error('invalid_edit_move', (move.rec_name,))
 
     @classmethod
     def write(cls, *args):
@@ -185,7 +189,7 @@ class SaleLine:
             vals = {}
             for v in values:
                 if v in cls._check_readonly_fields:
-                    cls.raise_user_error('invalid_edit_move', 'a')
+                    cls.raise_user_error('cannot_edit', v)
 
             for field in cls._check_modify_exclude:
                 if field in values:
