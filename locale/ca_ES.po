@@ -1,0 +1,38 @@
+#
+msgid ""
+msgstr "Content-Type: text/plain; charset=utf-8\n"
+
+msgctxt "error:sale.line:"
+msgid "Can not edit \"%s\" field."
+msgstr "No pot editar el camp \"%s\"."
+
+msgctxt "error:sale.line:"
+msgid "Can not edit line \"%s\" that has more than one move."
+msgstr "No pot editar la línia \"%s\" que té més d'un moviment."
+
+msgctxt "error:sale.line:"
+msgid "Can not edit move \"%s\" that state is assigned, done or cancel."
+msgstr ""
+"No pot editar el moviment \"%s\" en l'estat reservat, realitzat o "
+"cancel·lat."
+
+msgctxt "error:sale.sale:"
+msgid "Can not edit move \"%s\" that state is assigned, done or cancel."
+msgstr ""
+"No pot editar el moviment \"%s\" en l'estat reservat, realitzat o "
+"cancel·lat."
+
+msgctxt "error:sale.sale:"
+msgid "Can not edit sale \"%s\" and field %s because sale already invoiced."
+msgstr ""
+"No pot editar la venta \"%s\" i el camp %s d'una venta que està facturada."
+
+msgctxt "error:sale.sale:"
+msgid "Can not edit sale \"%s\" because sale partially shipped."
+msgstr "No pot editar la venta \"%s\" que està parcialment enviada."
+
+msgctxt "error:sale.sale:"
+msgid "Can not edit sale \"%s\" that invoicing method is not on shipment sent."
+msgstr ""
+"No pot editar la venta \"%s\" que el mètode de facturació no és en "
+"l'enviament."
