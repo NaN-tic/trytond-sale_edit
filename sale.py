@@ -109,8 +109,8 @@ class Sale:
                         vals[m[field]] = values.get(field)
 
                 if vals:
-                    shipment, = sale.shipments
-                    shipment_to_write.extend(([shipment], vals))
+                    for shipment in sale.shipments:
+                        shipment_to_write.extend(([shipment], vals))
 
         super(Sale, cls).write(*args)
 
