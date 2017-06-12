@@ -33,9 +33,6 @@ class Sale:
             field = getattr(cls, fname)
             field.states['readonly'] = _STATES_EDIT
 
-        # TODO update current readonly
-        # cls.lines.size = If(Eval('state') == 'processing', 1, 9999999)
-        #cls.lines.states['readonly'] = _STATES_EDIT
         cls._error_messages.update({
                 'invalid_edit_method': ('Can not edit sale "%s" '
                     'that invoicing method is not on shipment sent.'),
