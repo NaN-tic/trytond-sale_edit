@@ -203,7 +203,7 @@ Sale edit::
     >>> sale.save()
     Traceback (most recent call last):
         ...
-    UserError: ('UserError', (u'Can not edit move "4.0u product" that state is assigned, done or cancel.', ''))
+    UserError: ('UserError', (u'Can not edit move "4.0u product" that state is not draft.', ''))
 
 Sale new line::
 

@@ -41,7 +41,7 @@ class Sale:
                 'invalid_edit_shipments_method': ('Can not edit sale "%s" '
                     'because sale partially shipped.'),
                 'invalid_edit_move': ('Can not edit move "%s" '
-                        'that state is assigned, done or cancel.'),
+                        'that state is not draft.'),
 
                 })
 
@@ -69,6 +69,8 @@ class Sale:
 
         # check sale
         for sale in sales:
+            if not sale.check_edit_state_method:
+                continue
             sale.check_edit_invoice_method()
 
     @classmethod
@@ -82,6 +84,8 @@ class Sale:
 
         for sales, values in zip(actions, actions):
             for sale in sales:
+                if not sale.check_edit_state_method:
+                    continue
                 if len(sale.shipments) > 1:
                     cls.raise_user_error('invalid_edit_shipments_method',
                         (sale.rec_name,))
@@ -117,7 +121,8 @@ class Sale:
         if shipment_to_write:
             ShipmentOut.write(*shipment_to_write)
 
-        cls.process(sales_to_process)
+        if sales_to_process:
+            cls.process(sales_to_process)
 
 
 class SaleLine:
@@ -132,12 +137,13 @@ class SaleLine:
 
         cls._error_messages.update({
                 'invalid_edit_move': ('Can not edit move "%s" '
-                    'that state is assigned, done or cancel.'),
+                    'that state is not draft.'),
                 'invalid_edit_multimove': ('Can not edit line "%s" '
                     'that has more than one move.'),
                 'cannot_edit': ('Can not edit "%s" field.'),
                 })
 
+    @property
     def check_line_to_update(self):
         if (self.sale and self.sale.state == 'processing' and self.moves):
             return True
@@ -151,12 +157,14 @@ class SaleLine:
 
         # check sale
         for sale in sales:
+            if not sale.check_edit_state_method:
+                continue
             sale.check_edit_invoice_method()
 
         # check sale lines
         shipments = set()
         for line in lines:
-            if not line.check_line_to_update():
+            if not line.check_line_to_update:
                 continue
 
             moves = line.moves
@@ -184,30 +192,35 @@ class SaleLine:
 
         for lines, values in zip(actions, actions):
             vals = {}
+            check_readonly_fields = []
             for v in values:
                 if v in cls._check_readonly_fields:
-                    cls.raise_user_error('cannot_edit', v)
+                    check_readonly_fields.append(v)
 
             for field in cls._check_modify_exclude:
                 if field in values:
                     vals[field] = values.get(field)
 
-            if vals:
-                for line in lines:
-                    if not line.check_line_to_update():
-                        continue
-                    # get first move because in validate we check that can not
-                    # edit a line that has more than one move
-                    move, = line.moves
-                    moves_to_write.extend(([move], vals))
+            for line in lines:
+                if not line.check_line_to_update:
+                    continue
 
-                    if move.shipment:
-                        if move.shipment.__name__ == 'stock.shipment.out':
-                            shipment = move.shipment
-                            if shipment.state == 'waiting':
-                                shipment_out_waiting.add(shipment)
-                            if shipment.state == 'draft':
-                                shipment_out_draft.add(shipment)
+                if check_readonly_fields:
+                    cls.raise_user_error('cannot_edit',
+                        ', '.join(check_readonly_fields))
+
+                # get first move because in validate we check that can not
+                # edit a line that has more than one move
+                move, = line.moves
+                moves_to_write.extend(([move], vals))
+
+                if move.shipment:
+                    if move.shipment.__name__ == 'stock.shipment.out':
+                        shipment = move.shipment
+                        if shipment.state == 'waiting':
+                            shipment_out_waiting.add(shipment)
+                        if shipment.state == 'draft':
+                            shipment_out_draft.add(shipment)
 
         super(SaleLine, cls).write(*args)
 
