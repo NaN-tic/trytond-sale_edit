@@ -32,6 +32,15 @@ class Sale:
                 cls._check_modify_exclude_shipment.keys()):
             field = getattr(cls, fname)
             field.states['readonly'] = _STATES_EDIT
+            if not hasattr(field, 'depends'):
+                field.depends = ['state']
+            elif not 'state' in field.depends:
+                field.depends.append('state')
+
+        # also, lines can't edit when shipment state was sent
+        cls.lines.states['readonly'] = _STATES_EDIT | Eval('shipment_state').in_(
+                ['sent', 'exception'])
+        cls.lines.depends.append('shipment_state')
 
         cls._error_messages.update({
                 'invalid_edit_method': ('Can not edit sale "%s" '
@@ -86,11 +95,12 @@ class Sale:
             for sale in sales:
                 if not sale.check_edit_state_method:
                     continue
-                if len(sale.shipments) > 1:
-                    cls.raise_user_error('invalid_edit_shipments_method',
-                        (sale.rec_name,))
 
                 if 'lines' in values:
+                    if len(sale.shipments) > 1:
+                        cls.raise_user_error('invalid_edit_shipments_method',
+                            (sale.rec_name,))
+
                     for shipment in sale.shipments:
                         for move in shipment.moves:
                             if move.state != 'draft':
