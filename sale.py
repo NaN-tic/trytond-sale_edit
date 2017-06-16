@@ -2,6 +2,7 @@
 # copyright notices and license terms.
 from trytond.pyson import Eval
 from trytond.pool import Pool, PoolMeta
+from trytond.model import fields
 
 __all__ = ['Sale', 'SaleLine']
 
@@ -13,6 +14,8 @@ _STATES_EDIT_LINE = ~Eval('_parent_sale', {}).get('state').in_(['draft'])
 class Sale:
     __metaclass__ = PoolMeta
     __name__ = 'sale.sale'
+    shipment_moves = fields.Function(fields.One2Many('stock.move', None,
+        'Moves'), 'get_shipment_moves')
 
     @classmethod
     def __setup__(cls):
@@ -51,8 +54,21 @@ class Sale:
                     'because sale partially shipped.'),
                 'invalid_edit_move': ('Can not edit move "%s" '
                         'that state is not draft.'),
-
+                'invalid_delete_line': ('Can not delete a line "%s"'),
                 })
+
+    def get_shipment_moves(self, name):
+        '''
+        Get all moves from a sale; outgoing_moves, incoming_moves and inventory_moves
+        '''
+        moves = []
+        for shipment in self.shipments:
+            for move in shipment.moves:
+                moves.append(move.id)
+        for shipment in self.shipment_returns:
+            for move in shipment.moves:
+                moves.append(move.id)
+        return moves
 
     @property
     def check_edit_state_method(self):
@@ -100,16 +116,21 @@ class Sale:
                     if len(sale.shipments) > 1:
                         cls.raise_user_error('invalid_edit_shipments_method',
                             (sale.rec_name,))
+                    if len(sale.shipment_returns) > 1:
+                        cls.raise_user_error('invalid_edit_shipments_method',
+                            (sale.rec_name,))
 
-                    for shipment in sale.shipments:
-                        for move in shipment.moves:
-                            if move.state != 'draft':
-                                cls.raise_user_error('invalid_edit_move',
-                                    (move.rec_name,))
+                    for move in sale.shipment_moves:
+                        if move.state != 'draft':
+                            cls.raise_user_error('invalid_edit_move',
+                                (move.rec_name,))
 
                     for v in values['lines']:
                         if 'create' == v[0]:
                             sales_to_process.append(sale)
+                        if 'delete' == v[0]:
+                            cls.raise_user_error('invalid_delete_line',
+                                (sale.rec_name,))
 
                 for v in values:
                     if v in cls._check_modify_exclude and sale.invoices:
@@ -134,6 +155,30 @@ class Sale:
         if sales_to_process:
             cls.process(sales_to_process)
 
+    def _get_shipment_sale(self, Shipment, key):
+        # return sale shipment to continue picking or create new shipment
+        if Shipment.__name__ == 'stock.shipment.out':
+            shipments = self.shipments
+            if shipments and len(shipments) == 1:
+                shipment, = shipments
+                drafts = True
+                for move in shipment.moves:
+                    if move.state != 'draft':
+                        drafts = False
+                if drafts:
+                    return shipment
+        elif Shipment.__name__ == 'stock.shipment.out.return':
+            shipment_returns = self.shipment_returns
+            if shipment_returns and len(shipment_returns) == 1:
+                shipment, = shipment_returns
+                drafts = True
+                for move in shipment.moves:
+                    if move.state != 'draft':
+                        drafts = False
+                if drafts:
+                    return shipment
+        return super(Sale, self)._get_shipment_sale(Shipment, key)
+
 
 class SaleLine:
     __metaclass__ = PoolMeta
@@ -142,8 +187,9 @@ class SaleLine:
     @classmethod
     def __setup__(cls):
         super(SaleLine, cls).__setup__()
-        cls._check_modify_exclude = ['quantity', 'unit_price']
-        cls._check_readonly_fields = ['type', 'product', 'unit', 'taxes']
+        cls._check_modify_exclude = ['product', 'unit', 'quantity', 'unit_price']
+        cls._check_readonly_fields = []
+        cls._line2move = {'unit': 'uom'}
 
         cls._error_messages.update({
                 'invalid_edit_move': ('Can not edit move "%s" '
@@ -209,12 +255,22 @@ class SaleLine:
 
             for field in cls._check_modify_exclude:
                 if field in values:
-                    vals[field] = values.get(field)
+                    val = values.get(field)
+                    mfield = cls._line2move.get(field)
+                    if mfield:
+                        vals[mfield] = val
+                    else:
+                        if field == 'quantity':
+                            val = abs(val)
+                        vals[field] = val
 
             for line in lines:
                 if not line.check_line_to_update:
                     continue
 
+                # check that not change type line
+                if 'type' in values and values['type'] != line.type:
+                    cls.raise_user_error('cannot_edit', 'type')
                 if check_readonly_fields:
                     cls.raise_user_error('cannot_edit',
                         ', '.join(check_readonly_fields))

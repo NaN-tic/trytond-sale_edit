@@ -16,6 +16,10 @@ msgstr ""
 "No pot editar el moviment \"%s\" que l'estat no sigui en esborrany."
 
 msgctxt "error:sale.sale:"
+msgid "Can not delete a line \"%s\""
+msgstr "No pot eliminar una linia \"%s\"."
+
+msgctxt "error:sale.sale:"
 msgid "Can not edit move \"%s\" that state is not draft."
 msgstr ""
 "No pot editar el moviment \"%s\" que l'estat no sigui en esborrany."
