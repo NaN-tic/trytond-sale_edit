@@ -227,4 +227,6 @@ Sale new line::
     >>> sale_line.quantity = 10.0
     >>> sale.save()
     >>> len(sale.shipments)
+    1
+    >>> len(sale.moves)
     2
