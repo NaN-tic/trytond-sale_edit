@@ -108,6 +108,7 @@ class Sale:
         actions = iter(args)
         shipment_to_write = []
         sales_to_process = []
+        cache_to_update = []
 
         for sales, values in zip(actions, actions):
             for sale in sales:
@@ -121,6 +122,8 @@ class Sale:
                     if len(sale.shipment_returns) > 1:
                         cls.raise_user_error('invalid_edit_shipments_method',
                             (sale.rec_name,))
+
+                    cache_to_update.append(sale)
 
                     for move in sale.shipment_moves:
                         if move.state != 'draft':
@@ -156,6 +159,14 @@ class Sale:
 
         if sales_to_process:
             cls.process(sales_to_process)
+
+        if cache_to_update:
+            for sale in cache_to_update:
+                sale.untaxed_amount_cache = None
+                sale.tax_amount_cache = None
+                sale.total_amount_cache = None
+            cls.save(cache_to_update)
+            cls.store_cache(cache_to_update)
 
     def _get_shipment_sale(self, Shipment, key):
         # return sale shipment to continue picking or create new shipment
