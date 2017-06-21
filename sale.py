@@ -7,7 +7,8 @@ from trytond.model import fields
 __all__ = ['Sale', 'SaleLine']
 
 
-_STATES_EDIT = ~Eval('state').in_(['draft', 'quotation', 'confirmed', 'processing'])
+_STATES_EDIT = ~Eval('state').in_(['draft', 'quotation', 'confirmed',
+        'processing'])
 _STATES_EDIT_LINE = ~Eval('_parent_sale', {}).get('state').in_(['draft'])
 
 
@@ -41,8 +42,8 @@ class Sale:
                 field.depends.append('state')
 
         # also, lines can't edit when shipment state was sent
-        cls.lines.states['readonly'] = _STATES_EDIT | Eval('shipment_state').in_(
-                ['sent', 'exception'])
+        cls.lines.states['readonly'] = (_STATES_EDIT |
+            Eval('shipment_state').in_( ['sent', 'exception']))
         cls.lines.depends.append('shipment_state')
 
         cls._error_messages.update({
@@ -59,7 +60,8 @@ class Sale:
 
     def get_shipment_moves(self, name):
         '''
-        Get all moves from a sale; outgoing_moves, incoming_moves and inventory_moves
+        Get all moves from a sale; outgoing_moves, incoming_moves and
+        inventory_moves
         '''
         moves = []
         for shipment in self.shipments:
@@ -187,7 +189,8 @@ class SaleLine:
     @classmethod
     def __setup__(cls):
         super(SaleLine, cls).__setup__()
-        cls._check_modify_exclude = ['product', 'unit', 'quantity', 'unit_price']
+        cls._check_modify_exclude = ['product', 'unit', 'quantity',
+            'unit_price']
         cls._check_readonly_fields = []
         cls._line2move = {'unit': 'uom'}
 
