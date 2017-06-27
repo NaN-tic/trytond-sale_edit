@@ -213,16 +213,16 @@ class SaleLine:
                 'cannot_edit': ('Can not edit "%s" field.'),
                 })
 
-    @property
-    def check_line_to_update(self):
+    def check_line_to_update(self, fields):
         if (self.sale and self.sale.state == 'processing' and self.moves):
-            return True
+            # No check should be held if the only fields updated are
+            # 'moves_recreated' or 'moves_ignored'
+            if set(fields) - {'moves_recreated', 'moves_ignored'}:
+                return True
         return False
 
     @classmethod
-    def validate(cls, lines):
-        super(SaleLine, cls).validate(lines)
-
+    def check_editable(cls, lines, fields):
         sales = set(x.sale for x in lines if x.sale)
 
         # check sale
@@ -234,7 +234,7 @@ class SaleLine:
         # check sale lines
         shipments = set()
         for line in lines:
-            if not line.check_line_to_update:
+            if not line.check_line_to_update(fields):
                 continue
 
             moves = line.moves
@@ -279,7 +279,7 @@ class SaleLine:
                         vals[field] = val
 
             for line in lines:
-                if not line.check_line_to_update:
+                if not line.check_line_to_update(values.keys()):
                     continue
 
                 # check that not change type line
@@ -289,18 +289,20 @@ class SaleLine:
                     cls.raise_user_error('cannot_edit',
                         ', '.join(check_readonly_fields))
 
-                # get first move because in validate we check that can not
-                # edit a line that has more than one move
-                move, = line.moves
-                moves_to_write.extend(([move], vals))
+                if len(line.moves) == 1:
+                    # get first move because in validate we check that can not
+                    # edit a line that has more than one move
+                    move, = line.moves
+                    moves_to_write.extend(([move], vals))
 
-                if move.shipment:
-                    if move.shipment.__name__ == 'stock.shipment.out':
-                        shipment = move.shipment
-                        if shipment.state == 'waiting':
-                            shipment_out_waiting.add(shipment)
-                        if shipment.state == 'draft':
-                            shipment_out_draft.add(shipment)
+                    if move.shipment:
+                        if move.shipment.__name__ == 'stock.shipment.out':
+                            shipment = move.shipment
+                            if shipment.state == 'waiting':
+                                shipment_out_waiting.add(shipment)
+                            if shipment.state == 'draft':
+                                shipment_out_draft.add(shipment)
+            cls.check_editable(lines, values.keys())
 
         super(SaleLine, cls).write(*args)
 
