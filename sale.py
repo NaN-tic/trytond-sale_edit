@@ -192,6 +192,15 @@ class Sale:
                     return shipment
         return super(Sale, self)._get_shipment_sale(Shipment, key)
 
+    @classmethod
+    def cache_to_update(cls, sales):
+        for sale in sales:
+            sale.untaxed_amount_cache = None
+            sale.tax_amount_cache = None
+            sale.total_amount_cache = None
+        cls.save(sales)
+        cls.store_cache(sales)
+
 
 class SaleLine:
     __metaclass__ = PoolMeta
@@ -219,6 +228,8 @@ class SaleLine:
             # 'moves_recreated' or 'moves_ignored'
             if set(fields) - {'moves_recreated', 'moves_ignored'}:
                 return True
+        if (self.sale and self.sale.state in ['confirmed', 'processing']):
+            return True
         return False
 
     @classmethod
@@ -250,15 +261,38 @@ class SaleLine:
                     cls.raise_user_error('invalid_edit_move', (move.rec_name,))
 
     @classmethod
+    def create(cls, vlist):
+        Sale = Pool().get('sale.sale')
+
+        lines = super(SaleLine, cls).create(vlist)
+
+        sale_ids = []
+        for values in vlist:
+            if values.get('sale'):
+                sale_ids.append(values['sale'])
+
+        if sale_ids:
+            cache_to_update = Sale.search([
+                ('id', 'in', sale_ids),
+                ('state', 'in', ['confirmed', 'processing']),
+                ])
+            if cache_to_update:
+                Sale.cache_to_update(cache_to_update)
+
+        return lines
+
+    @classmethod
     def write(cls, *args):
         pool = Pool()
+        Sale = pool.get('sale.sale')
         ShipmentOut = pool.get('stock.shipment.out')
-        Move = Pool().get('stock.move')
+        Move = pool.get('stock.move')
 
         actions = iter(args)
         moves_to_write = []
         shipment_out_waiting = set()
         shipment_out_draft = set()
+        cache_to_update = set()
 
         for lines, values in zip(actions, actions):
             vals = {}
@@ -282,6 +316,13 @@ class SaleLine:
                 if not line.check_line_to_update(values.keys()):
                     continue
 
+                if ('quantity' in values or 'unit_price' in values
+                        or 'discount' in values):
+                    if (line.sale.untaxed_amount_cache
+                            or line.sale.tax_amount_cache
+                            or line.sale.total_amount_cache):
+                        cache_to_update.add(line.sale)
+
                 # check that not change type line
                 if 'type' in values and values['type'] != line.type:
                     cls.raise_user_error('cannot_edit', 'type')
@@ -302,9 +343,13 @@ class SaleLine:
                                 shipment_out_waiting.add(shipment)
                             if shipment.state == 'draft':
                                 shipment_out_draft.add(shipment)
+
             cls.check_editable(lines, values.keys())
 
         super(SaleLine, cls).write(*args)
+
+        if cache_to_update:
+            Sale.cache_to_update(list(cache_to_update))
 
         if moves_to_write:
             Move.write(*moves_to_write)
@@ -319,3 +364,19 @@ class SaleLine:
             if shipment_out_draft:
                 ShipmentOut.wait(list(shipment_out_draft))
                 ShipmentOut.draft(list(shipment_out_draft))
+
+    @classmethod
+    def delete(cls, lines):
+        Sale = Pool().get('sale.sale')
+
+        cache_to_update = set()
+        for line in lines:
+            if line.sale and (line.sale.untaxed_amount_cache
+                    or line.sale.tax_amount_cache
+                    or line.sale.total_amount_cache):
+                cache_to_update.add(line.sale)
+
+        super(SaleLine, cls).delete(lines)
+
+        if cache_to_update:
+            Sale.cache_to_update(list(cache_to_update))

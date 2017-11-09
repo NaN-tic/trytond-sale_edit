@@ -230,3 +230,40 @@ Sale new line::
     1
     >>> len(sale.moves)
     2
+
+Reload Sale cache::
+
+    >>> sale = Sale()
+    >>> sale.party = customer
+    >>> sale.payment_term = payment_term
+    >>> sale.invoice_method = 'shipment'
+    >>> sale_line = SaleLine()
+    >>> sale.lines.append(sale_line)
+    >>> sale_line.product = product
+    >>> sale_line.quantity = 2.0
+    >>> sale.click('quote')
+    >>> sale.click('confirm')
+    >>> sale.untaxed_amount == Decimal('20.00')
+    True
+    >>> # edit line and check cache
+    >>> line, = sale.lines
+    >>> line.quantity = 3.0
+    >>> line.save()
+    >>> sale.reload()
+    >>> sale.untaxed_amount == Decimal('30.00')
+    True
+    >>> # add new line and check cache
+    >>> sale_line = SaleLine()
+    >>> sale.lines.append(sale_line)
+    >>> sale_line.product = product
+    >>> sale_line.quantity = 2.0
+    >>> sale.save()
+    >>> sale.reload()
+    >>> sale.untaxed_amount == Decimal('50.00')
+    True
+    >>> # delete line and check cache
+    >>> line1, line2 = sale.lines
+    >>> SaleLine.delete([line2])
+    >>> sale.reload()
+    >>> sale.untaxed_amount == Decimal('30.00')
+    True
