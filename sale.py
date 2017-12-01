@@ -228,6 +228,8 @@ class SaleLine:
             # 'moves_recreated' or 'moves_ignored'
             if set(fields) - {'moves_recreated', 'moves_ignored'}:
                 return True
+            else:
+                return False
         if (self.sale and self.sale.state in ['confirmed', 'processing']):
             return True
         return False

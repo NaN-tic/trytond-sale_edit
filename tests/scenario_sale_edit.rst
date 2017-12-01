@@ -267,3 +267,28 @@ Reload Sale cache::
     >>> sale.reload()
     >>> sale.untaxed_amount == Decimal('30.00')
     True
+
+Shipment Exception::
+
+    >>> sale = Sale()
+    >>> sale.party = customer
+    >>> sale.payment_term = payment_term
+    >>> sale.invoice_method = 'shipment'
+    >>> sale_line = SaleLine()
+    >>> sale.lines.append(sale_line)
+    >>> sale_line.product = product
+    >>> sale_line.quantity = 2.0
+    >>> sale.click('quote')
+    >>> sale.click('confirm')
+    >>> sale.click('process')
+    >>> sale.reload()
+    >>> len(sale.shipments)
+    1
+    >>> shipment, = sale.shipments
+    >>> shipment.click('cancel')
+    >>> shipment.state
+    u'cancel'
+    >>> shipment_exception = Wizard('sale.handle.shipment.exception', [sale])
+    >>> shipment_exception.execute('handle')
+    >>> len(sale.shipments) == 2
+    True
