@@ -9,6 +9,7 @@ Imports::
     >>> from decimal import Decimal
     >>> from operator import attrgetter
     >>> from proteus import config, Model, Wizard, Report
+    >>> from trytond.tests.tools import activate_modules
     >>> from trytond.modules.company.tests.tools import create_company, \
     ...     get_company
     >>> from trytond.modules.account.tests.tools import create_fiscalyear, \
@@ -17,17 +18,10 @@ Imports::
     ...     set_fiscalyear_invoice_sequences, create_payment_term
     >>> today = datetime.date.today()
 
-Create database::
 
-    >>> config = config.set_trytond()
-    >>> config.pool.test = True
+Install sale_edit::
 
-Install sale::
-
-    >>> Module = Model.get('ir.module')
-    >>> sale_module, = Module.find([('name', '=', 'sale_edit')])
-    >>> sale_module.click('install')
-    >>> Wizard('ir.module.install_upgrade').execute('upgrade')
+    >>> config = activate_modules('sale_edit')
 
 Create company::
 
@@ -93,7 +87,7 @@ Create product::
     >>> template.account_revenue = revenue
     >>> template.customer_taxes.append(tax)
     >>> template.save()
-    >>> product.template = template
+    >>> product, = template.products
     >>> product.save()
 
     >>> service = Product()
@@ -108,7 +102,7 @@ Create product::
     >>> template.account_expense = expense
     >>> template.account_revenue = revenue
     >>> template.save()
-    >>> service.template = template
+    >>> service, = template.products
     >>> service.save()
 
 Create payment term::
@@ -158,7 +152,7 @@ Sale not edit::
     1
     >>> line1, line2 = sale.lines
     >>> line1.quantity = 4.0
-    >>> sale.save()
+    >>> sale.save()   # doctest: +IGNORE_EXCEPTION_DETAIL
     Traceback (most recent call last):
         ...
     UserError: ('UserError', (u'Can not edit sale "1" and field lines because sale already invoiced.', ''))
@@ -200,7 +194,7 @@ Sale edit::
     >>> sale.reload()
     >>> line1, line2 = sale.lines
     >>> line1.quantity = 6.0
-    >>> sale.save()
+    >>> sale.save()   # doctest: +IGNORE_EXCEPTION_DETAIL
     Traceback (most recent call last):
         ...
     UserError: ('UserError', (u'Can not edit move "4.0u product" that state is not draft.', ''))
