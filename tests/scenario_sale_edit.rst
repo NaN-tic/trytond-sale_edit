@@ -129,7 +129,7 @@ Create an Inventory::
     >>> inventory_line.expected_quantity = 0.0
     >>> inventory.click('confirm')
     >>> inventory.state
-    u'done'
+    'done'
 
 Sale not edit::
 
@@ -160,7 +160,7 @@ Sale not edit::
     >>> sale.save()   # doctest: +IGNORE_EXCEPTION_DETAIL
     Traceback (most recent call last):
         ...
-    UserError: ('UserError', (u'Can not edit sale "1" and field lines because sale already invoiced.', ''))
+    UserError: ('UserError', ('Can not edit sale "1" and field lines because sale already invoiced.', ''))
 
 Sale edit::
 
@@ -192,7 +192,7 @@ Sale edit::
     >>> move2.quantity
     4.0
     >>> move2.state
-    u'draft'
+    'draft'
     >>> shipment, = sale.shipments
     >>> shipment.click('assign_try')
     True
@@ -202,7 +202,7 @@ Sale edit::
     >>> sale.save()   # doctest: +IGNORE_EXCEPTION_DETAIL
     Traceback (most recent call last):
         ...
-    UserError: ('UserError', (u'Can not edit move "4.0u product" that state is not draft.', ''))
+    UserError: ('UserError', ('Can not edit move "4.0u product" that state is not draft.', ''))
 
 Sale new line::
 
@@ -230,6 +230,11 @@ Sale new line::
     >>> len(sale.moves)
     2
 
+Set has_worker = True to ensure sale is not processed automatically on confirm::
+
+    >>> from trytond.ir import queue
+    >>> queue.has_worker = True
+
 Reload Sale cache::
 
     >>> sale = Sale()
@@ -242,6 +247,8 @@ Reload Sale cache::
     >>> sale_line.quantity = 2.0
     >>> sale.click('quote')
     >>> sale.click('confirm')
+    >>> sale.state
+    'confirmed'
     >>> sale.untaxed_amount == Decimal('20.00')
     True
     >>> # edit line and check cache
@@ -286,7 +293,7 @@ Shipment Exception::
     >>> shipment, = sale.shipments
     >>> shipment.click('cancel')
     >>> shipment.state
-    u'cancel'
+    'cancel'
     >>> shipment_exception = Wizard('sale.handle.shipment.exception', [sale])
     >>> shipment_exception.execute('handle')
     >>> len(sale.shipments) == 2

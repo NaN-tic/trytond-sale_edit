@@ -12,8 +12,7 @@ _STATES_EDIT = ~Eval('state').in_(['draft', 'quotation', 'confirmed',
 _STATES_EDIT_LINE = ~Eval('_parent_sale', {}).get('state').in_(['draft'])
 
 
-class Sale:
-    __metaclass__ = PoolMeta
+class Sale(metaclass=PoolMeta):
     __name__ = 'sale.sale'
     shipment_moves = fields.Function(fields.One2Many('stock.move', None,
         'Moves'), 'get_shipment_moves')
@@ -33,7 +32,7 @@ class Sale:
         }
 
         for fname in (cls._check_modify_exclude +
-                cls._check_modify_exclude_shipment.keys()):
+                list(cls._check_modify_exclude_shipment.keys())):
             field = getattr(cls, fname)
             field.states['readonly'] = _STATES_EDIT
             if not hasattr(field, 'depends'):
@@ -202,8 +201,7 @@ class Sale:
         cls.store_cache(sales)
 
 
-class SaleLine:
-    __metaclass__ = PoolMeta
+class SaleLine(metaclass=PoolMeta):
     __name__ = 'sale.line'
 
     @classmethod
