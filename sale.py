@@ -86,7 +86,7 @@ class Sale:
         Check edit invoice method.
         '''
         if ((self.check_edit_state_method and
-                (self.invoice_method != 'shipment')) and
+                (self.invoice_method not in ('shipment', 'manual'))) and
                 len(self.shipments) > 1):
             self.raise_user_error('invalid_edit_method', (self.rec_name,))
 
