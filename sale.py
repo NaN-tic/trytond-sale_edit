@@ -3,6 +3,7 @@
 from trytond.pyson import Eval
 from trytond.pool import Pool, PoolMeta
 from trytond.model import fields
+from trytond.transaction import Transaction
 
 __all__ = ['Sale', 'SaleLine']
 
@@ -359,13 +360,16 @@ class SaleLine:
             # reload inventory_moves from outgoing_moves
             # not necessary in returns and reload inventory_moves from
             # incoming_moves
-            if shipment_out_waiting:
-                ShipmentOut.draft(list(shipment_out_waiting))
-                ShipmentOut.wait(list(shipment_out_waiting))
-
             if shipment_out_draft:
                 ShipmentOut.wait(list(shipment_out_draft))
-                ShipmentOut.draft(list(shipment_out_draft))
+
+            with Transaction().set_context(update_amounts=True):
+                if shipment_out_waiting or shipment_out_draft:
+                    ShipmentOut.draft(list(shipment_out_waiting) +
+                        list(shipment_out_draft))
+
+                if shipment_out_waiting:
+                    ShipmentOut.wait(list(shipment_out_waiting))
 
     @classmethod
     def delete(cls, lines):
