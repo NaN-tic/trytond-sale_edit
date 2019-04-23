@@ -1,0 +1,25 @@
+<tryton>
+    <data group="1">
+        <record model="ir.message" id="invalid_edit_move">
+            <field name="text">Can not edit move "%(sale)s" that state is not draft. </field>
+        </record>
+        <record model="ir.message" id="invalid_edit_multimove">
+            <field name="text">Can not edit line "%(line)s" that has more than one move.</field>
+        </record>
+        <record model="ir.message" id="cannot_edit">
+            <field name="text">Can not edit "%(field)s" field.</field>
+        </record>
+        <record model="ir.message" id="invalid_edit_method">
+            <field name="text">Can not edit sale "%(sale)s" that invoicing method is not on shipment sent.</field>
+        </record>
+        <record model="ir.message" id="invalid_edit_fields_method">
+            <field name="text">Can not edit sale "%(sale)s" and field %s because sale already invoiced.</field>
+        </record>
+        <record model="ir.message" id="invalid_edit_shipments_method">
+            <field name="text">Can not edit sale "%(sale)s" because sale partially shipped.</field>
+        </record>
+        <record model="ir.message" id="invalid_delete_line">
+            <field name="text">Can not delete a line "%(sale)s"</field>
+        </record>
+    </data>
+</tryton>

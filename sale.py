@@ -4,6 +4,8 @@ from trytond.pyson import Eval
 from trytond.pool import Pool, PoolMeta
 from trytond.model import fields
 from trytond.transaction import Transaction
+from trytond.i18n import gettext
+from trytond.exceptions import UserError
 
 __all__ = ['Sale', 'SaleLine']
 
@@ -46,18 +48,6 @@ class Sale(metaclass=PoolMeta):
             Eval('shipment_state').in_( ['sent', 'exception']))
         cls.lines.depends.append('shipment_state')
 
-        cls._error_messages.update({
-                'invalid_edit_method': ('Can not edit sale "%s" '
-                    'that invoicing method is not on shipment sent.'),
-                'invalid_edit_fields_method': ('Can not edit sale "%s" '
-                    'and field %s because sale already invoiced.'),
-                'invalid_edit_shipments_method': ('Can not edit sale "%s" '
-                    'because sale partially shipped.'),
-                'invalid_edit_move': ('Can not edit move "%s" '
-                        'that state is not draft.'),
-                'invalid_delete_line': ('Can not delete a line "%s"'),
-                })
-
     def get_shipment_moves(self, name):
         '''
         Get all moves from a sale; outgoing_moves, incoming_moves and
@@ -88,7 +78,9 @@ class Sale(metaclass=PoolMeta):
         if ((self.check_edit_state_method and
                 (self.invoice_method not in ('shipment', 'manual'))) and
                 len(self.shipments) > 1):
-            self.raise_user_error('invalid_edit_method', (self.rec_name,))
+
+            raise UserError(gettext('sale_edit.invalid_edit_method',
+                    sale=self.rec_name))
 
     @classmethod
     def validate(cls, sales):
@@ -117,30 +109,35 @@ class Sale(metaclass=PoolMeta):
 
                 if 'lines' in values:
                     if len(sale.shipments) > 1:
-                        cls.raise_user_error('invalid_edit_shipments_method',
-                            (sale.rec_name,))
+                        raise UserError(gettext(
+                                'sale_edit.invalid_edit_shipments_method',
+                                sale=sale.rec_name))
                     if len(sale.shipment_returns) > 1:
-                        cls.raise_user_error('invalid_edit_shipments_method',
-                            (sale.rec_name,))
+                        raise UserError(gettext(
+                                'sale_edit.invalid_edit_shipments_method',
+                                sale=sale.rec_name))
 
                     cache_to_update.append(sale)
 
                     for move in sale.shipment_moves:
                         if move.state != 'draft':
-                            cls.raise_user_error('invalid_edit_move',
-                                (move.rec_name,))
+                            raise UserError(gettext(
+                                    'sale_edit.invalid_edit_move',
+                                    move=move.rec_name))
 
                     for v in values['lines']:
                         if 'create' == v[0]:
                             sales_to_process.append(sale)
                         if 'delete' == v[0]:
-                            cls.raise_user_error('invalid_delete_line',
-                                (sale.rec_name,))
+                            raise UserError(gettext(
+                                    'sale_edit.invalid_delete_line',
+                                    sale=sale.rec_name))
 
                 for v in values:
                     if v in cls._check_modify_exclude and sale.invoices:
-                        cls.raise_user_error('invalid_edit_fields_method',
-                            (sale.rec_name, v))
+                        raise UserError(gettext(
+                                'sale_edit.invalid_edit_fields_method',
+                                sale=sale.rec_name))
 
                 vals = {}
                 for field in cls._check_modify_exclude_shipment:
@@ -213,14 +210,6 @@ class SaleLine(metaclass=PoolMeta):
         cls._check_readonly_fields = []
         cls._line2move = {'unit': 'uom'}
 
-        cls._error_messages.update({
-                'invalid_edit_move': ('Can not edit move "%s" '
-                    'that state is not draft.'),
-                'invalid_edit_multimove': ('Can not edit line "%s" '
-                    'that has more than one move.'),
-                'cannot_edit': ('Can not edit "%s" field.'),
-                })
-
     def check_line_to_update(self, fields):
         if (self.sale and self.sale.state == 'processing' and self.moves):
             # No check should be held if the only fields updated are
@@ -251,7 +240,8 @@ class SaleLine(metaclass=PoolMeta):
 
             moves = line.moves
             if len(moves) > 1:
-                cls.raise_user_error('invalid_edit_multimove', (line.rec_name))
+                raise UserError(gettext('sale_edit.invalid_edit_multimove',
+                        line=line.rec_name))
             for move in moves:
                 if move.shipment:
                     shipments.add(move.shipment)
@@ -259,7 +249,8 @@ class SaleLine(metaclass=PoolMeta):
         for shipment in shipments:
             for move in shipment.moves:
                 if move.state != 'draft':
-                    cls.raise_user_error('invalid_edit_move', (move.rec_name,))
+                    raise UserError(gettext('sale_edit.invalid_edit_move',
+                            move=move.rec_name))
 
     @classmethod
     def create(cls, vlist):
@@ -326,10 +317,10 @@ class SaleLine(metaclass=PoolMeta):
 
                 # check that not change type line
                 if 'type' in values and values['type'] != line.type:
-                    cls.raise_user_error('cannot_edit', 'type')
+                    raise UserError('sale_edit.cannot_edit', field='type')
                 if check_readonly_fields:
-                    cls.raise_user_error('cannot_edit',
-                        ', '.join(check_readonly_fields))
+                    raise UserError('sale_edit.cannot_edit',
+                        field=', '.join(check_readonly_fields))
 
                 if len(line.moves) == 1:
                     # get first move because in validate we check that can not
