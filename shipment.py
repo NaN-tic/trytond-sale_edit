@@ -11,7 +11,6 @@ class ShipmentOut(metaclass=PoolMeta):
 
     @classmethod
     def write(cls, *args):
-        super(ShipmentOut, cls).write(*args)
         actions = iter(args)
         args = []
 
