@@ -48,12 +48,6 @@ Create chart of accounts::
     >>> expense = accounts['expense']
     >>> cash = accounts['cash']
 
-    >>> Journal = Model.get('account.journal')
-    >>> cash_journal, = Journal.find([('type', '=', 'cash')])
-    >>> cash_journal.credit_account = cash
-    >>> cash_journal.debit_account = cash
-    >>> cash_journal.save()
-
 Create tax::
 
     >>> tax = create_tax(Decimal('.10'))
@@ -88,7 +82,6 @@ Create product::
     >>> template.name = 'product'
     >>> template.default_uom = unit
     >>> template.type = 'goods'
-    >>> template.purchasable = True
     >>> template.salable = True
     >>> template.list_price = Decimal('10')
     >>> template.cost_price_method = 'fixed'
@@ -160,7 +153,7 @@ Sale not edit::
     >>> sale.save()   # doctest: +IGNORE_EXCEPTION_DETAIL
     Traceback (most recent call last):
         ...
-    UserError: ('UserError', ('Can not edit sale "1" and field lines because sale already invoiced.', ''))
+    UserError: ('UserError', ('Can not edit sale "1" and field "lines" because sale already invoiced.', ''))
 
 Sale edit::
 
@@ -296,5 +289,5 @@ Shipment Exception::
     'cancel'
     >>> shipment_exception = Wizard('sale.handle.shipment.exception', [sale])
     >>> shipment_exception.execute('handle')
-    >>> len(sale.shipments) == 2
-    True
+    >>> len(sale.shipments)
+    2

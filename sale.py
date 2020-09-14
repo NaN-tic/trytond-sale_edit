@@ -137,7 +137,7 @@ class Sale(metaclass=PoolMeta):
                     if v in cls._check_modify_exclude and sale.invoices:
                         raise UserError(gettext(
                                 'sale_edit.invalid_edit_fields_method',
-                                sale=sale.rec_name))
+                                sale=sale.rec_name, field=v))
 
                 vals = {}
                 for field in cls._check_modify_exclude_shipment:
@@ -370,6 +370,9 @@ class SaleLine(metaclass=PoolMeta):
                     or line.sale.tax_amount_cache
                     or line.sale.total_amount_cache):
                 cache_to_update.add(line.sale)
+            # Trick SaleLine.delete() making it think that lines are in a draft
+            # sale.
+            line.sale_state = 'draft'
 
         super(SaleLine, cls).delete(lines)
 
