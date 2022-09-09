@@ -153,7 +153,8 @@ class Sale:
                     for shipment in sale.shipments:
                         shipment_to_write.extend(([shipment], vals))
 
-        super(Sale, cls).write(*args)
+        with Transaction().set_context(apply_discount_to_lines=False):
+            super(Sale, cls).write(*args)
 
         if shipment_to_write:
             ShipmentOut.write(*shipment_to_write)
